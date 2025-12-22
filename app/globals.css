@@ -1,26 +1,151 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
+@theme {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.141 0.005 285.823);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.141 0.005 285.823);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.141 0.005 285.823);
+  --primary: oklch(0.21 0.006 285.885);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.967 0.001 286.375);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+  --muted: oklch(0.967 0.001 286.375);
+  --muted-foreground: oklch(0.552 0.016 285.938);
+  --accent: oklch(0.967 0.001 286.375);
+  --accent-foreground: oklch(0.21 0.006 285.885);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.92 0.004 286.32);
+  --input: oklch(0.92 0.004 286.32);
+  --ring: oklch(0.705 0.015 286.067);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.141 0.005 285.823);
+  --sidebar-primary: oklch(0.21 0.006 285.885);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.967 0.001 286.375);
+  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
+  --sidebar-border: oklch(0.92 0.004 286.32);
+  --sidebar-ring: oklch(0.705 0.015 286.067);
+}
+
+.dark {
+  --background: rgb(16, 15, 11);
+  --foreground: rgb(250, 250, 250);
+  --card: rgb(37, 36, 30, 0.7);
+  --card-foreground: rgb(250, 250, 250);
+  --popover: rgb(24, 24, 27);
+  --popover-foreground: rgb(250, 250, 250);
+  --primary: rgb(228, 228, 231);
+  --primary-foreground: rgb(24, 24, 27);
+  --secondary: rgb(39, 39, 42);
+  --secondary-foreground: rgb(250, 250, 250);
+  --muted: rgb(39, 39, 42);
+  --muted-foreground: rgb(159, 159, 169);
+  --accent: rgb(39, 39, 42);
+  --accent-foreground: rgb(250, 250, 250);
+  --destructive: rgb(255, 100, 103);
+  --border: rgba(250, 250, 250, 0.1);
+  --input: rgba(250, 250, 250, 0.15);
+  --ring: rgb(113, 113, 123);
+  --chart-1: rgb(20, 71, 230);
+  --chart-2: rgb(0, 188, 125);
+  --chart-3: rgb(254, 154, 0);
+  --chart-4: rgb(173, 70, 255);
+  --chart-5: rgb(255, 32, 86);
+  --sidebar: rgb(24, 24, 27);
+  --sidebar-foreground: rgb(250, 250, 250);
+  --sidebar-primary: rgb(20, 71, 230);
+  --sidebar-primary-foreground: rgb(250, 250, 250);
+  --sidebar-accent: rgb(39, 39, 42);
+  --sidebar-accent-foreground: rgb(250, 250, 250);
+  --sidebar-border: rgba(250, 250, 250, 0.1);
+  --sidebar-ring: rgb(113, 113, 123);
+}
+
+/* Base styles - Tailwind v4 approach */
+* {
+  border-color: var(--border);
+  outline-color: color-mix(in oklch, var(--ring) 50%, transparent);
 }
 
 body {
-  background: var(--background);
+  background-color: rgb(16, 15, 11);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, sans-serif;
+  font-size: 1rem;
+  line-height: 1.5;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Typography Scale - 1.25 ratio */
+h1 {
+  font-size: clamp(2rem, 4vw + 1rem, 2.441rem);
+  line-height: 1.2;
+  font-weight: 550;
+  letter-spacing: -0.02em;
+}
+
+h2 {
+  font-size: clamp(1.5rem, 3vw + 1rem, 1.953rem);
+  line-height: 1.3;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+}
+
+h3 {
+  font-size: 1.563rem;
+  line-height: 1.3;
+  font-weight: 550;
+}
+
+h4 {
+  font-size: 1.25rem;
+  line-height: 1.4;
+  font-weight: 550;
+}
+
+p {
+  line-height: 1.6;
+}
+
+small {
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+/* Utility class for max line width */
+.prose {
+  max-width: 65ch;
 }
