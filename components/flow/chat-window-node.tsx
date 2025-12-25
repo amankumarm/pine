@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useRef } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { Handle, Position, NodeProps } from "reactflow";
 import { MessageRole } from "@prisma/client";
 import { ChatMessage } from "./chat-message";
@@ -26,6 +26,7 @@ interface ChatWindowNodeData {
     windowId: string,
     range: Range
   ) => void;
+  onTitleChange?: (windowId: string, newTitle: string) => Promise<void>;
 }
 
 function ChatWindowNode({ data }: NodeProps<ChatWindowNodeData>) {
@@ -37,7 +38,23 @@ function ChatWindowNode({ data }: NodeProps<ChatWindowNodeData>) {
     isThinking = false,
     onSendMessage,
     onTextSelect,
+    onTitleChange,
   } = data;
+
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState(title);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setEditedTitle(title);
+  }, [title]);
+
+  useEffect(() => {
+    if (isEditingTitle && titleInputRef.current) {
+      titleInputRef.current.focus();
+      titleInputRef.current.select();
+    }
+  }, [isEditingTitle]);
 
   const handleSend = async (content: string) => {
     await onSendMessage(windowId, content);
@@ -49,6 +66,37 @@ function ChatWindowNode({ data }: NodeProps<ChatWindowNodeData>) {
     range: Range
   ) => {
     onTextSelect(selectedText, messageId, windowId, range);
+  };
+
+  const handleEditClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsEditingTitle(true);
+  };
+
+  const handleTitleSave = async () => {
+    const trimmedTitle = editedTitle.trim();
+    if (trimmedTitle && trimmedTitle !== title && onTitleChange) {
+      await onTitleChange(windowId, trimmedTitle);
+    } else if (!trimmedTitle) {
+      setEditedTitle(title);
+    }
+    setIsEditingTitle(false);
+  };
+
+  const handleTitleCancel = () => {
+    setEditedTitle(title);
+    setIsEditingTitle(false);
+  };
+
+  const handleTitleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleTitleSave();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      handleTitleCancel();
+    }
   };
 
   const contentRef = useRef<HTMLDivElement>(null);
@@ -86,14 +134,59 @@ function ChatWindowNode({ data }: NodeProps<ChatWindowNodeData>) {
   };
 
   return (
-    <div className="bg-background border-2 border-border rounded-lg shadow-lg min-w-[400px] max-w-[500px]">
+    <div className="bg-background border-2 border-border rounded-lg shadow-lg min-w-[400px] max-w-[500px] min-h-[500px] flex flex-col group">
       <Handle type="target" position={Position.Left} />
-      <div className="p-4 border-b border-border cursor-move" data-handle>
-        <h5 className="font-[550] text-sm">{title}</h5>
+      <div className="p-4 border-b border-border shrink-0">
+        <div className="flex items-center gap-2">
+          <div className="flex-1 cursor-move" data-handle>
+            {isEditingTitle ? (
+              <input
+                ref={titleInputRef}
+                type="text"
+                value={editedTitle}
+                onChange={(e) => setEditedTitle(e.target.value)}
+                onBlur={handleTitleSave}
+                onKeyDown={handleTitleKeyDown}
+                className="w-full font-[550] text-sm bg-background border border-border rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary"
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <h5 className="font-[550] text-sm">{title}</h5>
+            )}
+          </div>
+          {!isEditingTitle && onTitleChange && (
+            <button
+              onClick={handleEditClick}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              className="opacity-0 group-hover:opacity-100 hover:opacity-100 transition-opacity p-1 rounded hover:bg-muted shrink-0"
+              title="Edit title"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-muted-foreground"
+              >
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+            </button>
+          )}
+        </div>
       </div>
       <div
         ref={contentRef}
-        className="p-4 max-h-[500px] overflow-y-auto"
+        className="p-4 overflow-y-auto flex-1 h-0"
         onMouseDown={handleMouseDown}
       >
         {messages.length === 0 ? (
@@ -146,7 +239,7 @@ function ChatWindowNode({ data }: NodeProps<ChatWindowNodeData>) {
       </div>
       <div
         ref={inputRef}
-        className="p-4 border-t border-border"
+        className="p-4 border-t border-border shrink-0"
         onMouseDown={handleMouseDown}
       >
         <ChatInput

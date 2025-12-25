@@ -13,7 +13,7 @@ export default async function FlowPage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <Navbar showDashboard />
+      <Navbar />
       <main className="container mx-auto flex-1 px-4 py-8">
         <div className="mb-8">
           <h1 className="hero-font mb-2 text-3xl font-normal">React Flow Example</h1>

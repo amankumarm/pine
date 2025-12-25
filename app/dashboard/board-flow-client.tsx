@@ -46,15 +46,62 @@ export function BoardFlowClient({ board }: BoardFlowClientProps) {
   const [streamingWindowId, setStreamingWindowId] = useState<string | null>(
     null
   );
+
   const [thinkingWindowId, setThinkingWindowId] = useState<string | null>(null);
+  const [focusTarget, setFocusTarget] = useState<{
+    id: string;
+    timestamp: number;
+  } | null>(null);
 
   const handleSendMessage = useCallback(
     async (windowId: string, content: string) => {
+      let activeWindowId = windowId;
+
+      // Check if this is a temporary window that needs to be created first
+      if (windowId.startsWith("temp-")) {
+        try {
+          // Find the temp window data
+          const tempWindow = windows.find((w) => w.id === windowId);
+          if (!tempWindow) {
+            throw new Error("Temporary window not found");
+          }
+
+          // Create the real window
+          const createResponse = await fetch(
+            `/api/boards/${board.id}/windows`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                title: tempWindow.title,
+                positionX: tempWindow.positionX,
+                positionY: tempWindow.positionY,
+              }),
+            }
+          );
+
+          if (!createResponse.ok) {
+            throw new Error("Failed to create window");
+          }
+
+          const newWindow = await createResponse.json();
+          activeWindowId = newWindow.id;
+
+          // Update local state to replace temp ID with real ID
+          setWindows((prev) =>
+            prev.map((w) => (w.id === windowId ? { ...w, id: activeWindowId } : w))
+          );
+        } catch (error) {
+          console.error("Error lazy creating window:", error);
+          return;
+        }
+      }
+
       // Add user message optimistically
       const tempUserMessageId = `temp-user-${Date.now()}`;
       setWindows((prev) =>
         prev.map((w) =>
-          w.id === windowId
+          w.id === activeWindowId
             ? {
                 ...w,
                 messages: [
@@ -72,11 +119,11 @@ export function BoardFlowClient({ board }: BoardFlowClientProps) {
       );
 
       // Set thinking state - waiting for response to start
-      setThinkingWindowId(windowId);
+      setThinkingWindowId(activeWindowId);
       setStreamingWindowId(null); // Clear streaming state initially
       try {
         const response = await fetch(
-          `/api/boards/${board.id}/windows/${windowId}/messages`,
+          `/api/boards/${board.id}/windows/${activeWindowId}/messages`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -109,12 +156,12 @@ export function BoardFlowClient({ board }: BoardFlowClientProps) {
                   const data = JSON.parse(line.slice(6));
                   if (data.delta) {
                     // Clear thinking state when first delta arrives and start streaming
-                    if (thinkingWindowId === windowId) {
+                    if (thinkingWindowId === activeWindowId) {
                       setThinkingWindowId(null);
                     }
                     // Set streaming state on first delta
                     if (!messageAdded) {
-                      setStreamingWindowId(windowId);
+                      setStreamingWindowId(activeWindowId);
                       messageAdded = true;
                     }
 
@@ -131,7 +178,7 @@ export function BoardFlowClient({ board }: BoardFlowClientProps) {
                     flushSync(() => {
                       setWindows((prev) => {
                         return prev.map((w) => {
-                          if (w.id !== windowId) return w;
+                          if (w.id !== activeWindowId) return w;
 
                           const existingMessageIndex = w.messages.findIndex(
                             (m) => m.id === assistantMessageId
@@ -193,7 +240,7 @@ export function BoardFlowClient({ board }: BoardFlowClientProps) {
         // Remove optimistic user message on error
         setWindows((prev) =>
           prev.map((w) =>
-            w.id === windowId
+            w.id === activeWindowId
               ? {
                   ...w,
                   messages: w.messages.filter(
@@ -205,7 +252,7 @@ export function BoardFlowClient({ board }: BoardFlowClientProps) {
         );
       }
     },
-    [board.id, thinkingWindowId]
+    [board.id, thinkingWindowId, windows]
   );
 
   const handleWindowPositionChange = useCallback(
@@ -231,6 +278,51 @@ export function BoardFlowClient({ board }: BoardFlowClientProps) {
       } catch (error) {
         console.error("Error updating window position:", error);
         // Revert on error - could fetch from server or keep optimistic update
+      }
+    },
+    [board.id]
+  );
+
+  const handleWindowTitleChange = useCallback(
+    async (windowId: string, newTitle: string) => {
+      // Store previous title for potential revert
+      let previousTitle: string | undefined;
+      setWindows((prev) => {
+        const window = prev.find((w) => w.id === windowId);
+        previousTitle = window?.title;
+        return prev.map((w) =>
+          w.id === windowId ? { ...w, title: newTitle } : w
+        );
+      });
+
+      // Skip API call for temporary windows (optimistic updates)
+      if (windowId.startsWith("temp-")) {
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `/api/boards/${board.id}/windows/${windowId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title: newTitle }),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to update window title");
+        }
+      } catch (error) {
+        console.error("Error updating window title:", error);
+        // Revert on error
+        if (previousTitle !== undefined) {
+          setWindows((prev) =>
+            prev.map((w) =>
+              w.id === windowId ? { ...w, title: previousTitle! } : w
+            )
+          );
+        }
       }
     },
     [board.id]
@@ -327,6 +419,41 @@ export function BoardFlowClient({ board }: BoardFlowClientProps) {
     [board.id, windows]
   );
 
+  const handleAddWindow = useCallback(async () => {
+    // Calculate position for new window
+    // Place it offset from existing windows or at a default position
+    const defaultX = 250;
+    const defaultY = 100;
+
+    // Find a position that doesn't overlap with existing windows
+    let newX = defaultX;
+    let newY = defaultY;
+
+    if (windows.length > 0) {
+      // Find the rightmost window and place new one to its right
+      const rightmostWindow = windows.reduce((prev, curr) =>
+        curr.positionX > prev.positionX ? curr : prev
+      );
+      newX = rightmostWindow.positionX + 600;
+      newY = rightmostWindow.positionY;
+    }
+
+    // Create optimistic window
+    const tempWindowId = `temp-window-${Date.now()}`;
+    const optimisticWindow: ChatWindow = {
+      id: tempWindowId,
+      title: "New Chat",
+      positionX: newX,
+      positionY: newY,
+      messages: [],
+    };
+
+
+    
+    setFocusTarget({ id: tempWindowId, timestamp: Date.now() });
+    setWindows((prev) => [...prev, optimisticWindow]);
+  }, [windows]);
+
   return (
     <BoardFlow
       boardId={board.id}
@@ -337,6 +464,9 @@ export function BoardFlowClient({ board }: BoardFlowClientProps) {
       onSendMessage={handleSendMessage}
       onWindowPositionChange={handleWindowPositionChange}
       onTextSelect={handleTextSelect}
+      onAddWindow={handleAddWindow}
+      onWindowTitleChange={handleWindowTitleChange}
+      focusTarget={focusTarget}
     />
   );
 }

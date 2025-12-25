@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser, signOut } from "@/lib/auth";
-import { Button } from "@/components/ui/button";
-import { Navbar } from "@/components/navbar";
-import { BoardsList } from "./boards-list";
+import { getCurrentUser } from "@/lib/auth";
+import { getOrCreateUserBoard } from "@/lib/services/boards";
+import { BoardFlowClient } from "./board-flow-client";
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
@@ -11,29 +10,17 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
+  const board = await getOrCreateUserBoard();
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <Navbar
-        showProfile
-        signOutForm={
-          <form
-            action={async () => {
-              "use server";
-              await signOut();
-              redirect("/login");
-            }}
-          >
-            <Button type="submit" variant="ghost">
-              Sign out
-            </Button>
-          </form>
-        }
-      />
-      <main className="container mx-auto flex-1 px-4 py-8">
-        <div className="mb-8">
-          <p className="text-xl ">Welcome back, {user.email}</p>
+      <div>
+        
+      </div>
+      <main className="flex-1 overflow-hidden">
+        <div className="h-full">
+          <BoardFlowClient board={board} />
         </div>
-        <BoardsList />
       </main>
     </div>
   );

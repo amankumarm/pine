@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { updateWindowPosition } from '@/lib/services/windows'
+import { updateWindowPosition, updateWindowTitle } from '@/lib/services/windows'
 
 export async function PATCH(
   request: NextRequest,
@@ -8,19 +8,26 @@ export async function PATCH(
   try {
     const { windowId } = await params
     const body = await request.json()
-    const { positionX, positionY } = body
+    const { positionX, positionY, title } = body
 
-    if (positionX === undefined || positionY === undefined) {
-      return NextResponse.json(
-        { error: 'positionX and positionY are required' },
-        { status: 400 }
-      )
+    // Handle position update
+    if (positionX !== undefined && positionY !== undefined) {
+      const window = await updateWindowPosition(windowId, positionX, positionY)
+      return NextResponse.json(window)
     }
 
-    const window = await updateWindowPosition(windowId, positionX, positionY)
-    return NextResponse.json(window)
+    // Handle title update
+    if (title !== undefined) {
+      const window = await updateWindowTitle(windowId, title)
+      return NextResponse.json(window)
+    }
+
+    return NextResponse.json(
+      { error: 'Either positionX/positionY or title must be provided' },
+      { status: 400 }
+    )
   } catch (error) {
-    console.error('Error updating window position:', error)
+    console.error('Error updating window:', error)
     if (error instanceof Error && error.message === 'Window not found') {
       return NextResponse.json(
         { error: 'Window not found' },
@@ -28,7 +35,7 @@ export async function PATCH(
       )
     }
     return NextResponse.json(
-      { error: 'Failed to update window position' },
+      { error: 'Failed to update window' },
       { status: 500 }
     )
   }

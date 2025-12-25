@@ -130,10 +130,10 @@ export function ChatMessage({
       onMouseDown={handleMouseDown}
     >
       <div
-        className={`inline-block max-w-[80%] rounded-lg px-4 py-2 select-text ${
+        className={`rounded-lg px-4 py-2 select-text text-foreground ${
           role === MessageRole.USER
-            ? "bg-primary text-primary-foreground"
-            : "bg-muted text-foreground"
+            ? "inline-block max-w-[80%] bg-muted"
+            : "block w-full"
         }`}
         style={{ userSelect: role === MessageRole.ASSISTANT ? "text" : "auto" }}
       >

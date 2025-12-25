@@ -21,7 +21,6 @@ export default async function ProfilePage() {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <Navbar
-        showDashboard
         showProfile
         signOutForm={
           <form

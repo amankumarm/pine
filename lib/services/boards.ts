@@ -1,25 +1,78 @@
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/auth";
 
-export async function getUserBoards() {
+export async function getOrCreateUserBoard() {
   const user = await getCurrentUser();
   if (!user) {
     throw new Error("Unauthorized");
   }
 
-  // Find user in database by email
-  const dbUser = await prisma.user.findUnique({
+  // Find or create user in database
+  let dbUser = await prisma.user.findUnique({
     where: { email: user.email! },
   });
 
   if (!dbUser) {
-    throw new Error("User not found");
+    dbUser = await prisma.user.create({
+      data: {
+        email: user.email!,
+      },
+    });
   }
 
-  return prisma.board.findMany({
+  // Check if user already has a board
+  let board = await prisma.board.findFirst({
     where: { userId: dbUser.id },
-    orderBy: { updatedAt: "desc" },
+    include: {
+      chatWindows: {
+        include: {
+          messages: {
+            orderBy: { createdAt: "asc" },
+          },
+        },
+        orderBy: { createdAt: "asc" },
+      },
+      edges: {
+        include: {
+          sourceMessage: true,
+        },
+      },
+    },
   });
+
+  // If no board exists, create one with a default chat window
+  if (!board) {
+    board = await prisma.board.create({
+      data: {
+        userId: dbUser.id,
+        name: "Canvas",
+        chatWindows: {
+          create: {
+            title: "New Chat",
+            positionX: 250,
+            positionY: 100,
+          },
+        },
+      },
+      include: {
+        chatWindows: {
+          include: {
+            messages: {
+              orderBy: { createdAt: "asc" },
+            },
+          },
+          orderBy: { createdAt: "asc" },
+        },
+        edges: {
+          include: {
+            sourceMessage: true,
+          },
+        },
+      },
+    });
+  }
+
+  return board;
 }
 
 export async function getBoardById(boardId: string) {
@@ -61,46 +114,6 @@ export async function getBoardById(boardId: string) {
   if (!board) {
     throw new Error("Board not found");
   }
-
-  return board;
-}
-
-export async function createBoard(name: string, description?: string) {
-  const user = await getCurrentUser();
-  if (!user) {
-    throw new Error("Unauthorized");
-  }
-
-  let dbUser = await prisma.user.findUnique({
-    where: { email: user.email! },
-  });
-
-  if (!dbUser) {
-    // Create user if doesn't exist
-    dbUser = await prisma.user.create({
-      data: {
-        email: user.email!,
-      },
-    });
-  }
-
-  const board = await prisma.board.create({
-    data: {
-      userId: dbUser.id,
-      name,
-      description,
-      chatWindows: {
-        create: {
-          title: "New Chat",
-          positionX: 250,
-          positionY: 100,
-        },
-      },
-    },
-    include: {
-      chatWindows: true,
-    },
-  });
 
   return board;
 }
