@@ -134,7 +134,7 @@ function ChatWindowNode({ data }: NodeProps<ChatWindowNodeData>) {
   };
 
   return (
-    <div className="bg-background border-2 border-border rounded-lg shadow-lg min-w-[400px] max-w-[500px] min-h-[500px] flex flex-col group">
+    <div className="bg-background border-2 border-border rounded-lg shadow-lg min-w-[400px] max-w-[500px] min-h-[500px] max-h-[600px] flex flex-col group">
       <Handle type="target" position={Position.Left} />
       <div className="p-4 border-b border-border shrink-0">
         <div className="flex items-center gap-2">

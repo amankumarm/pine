@@ -149,3 +149,25 @@ small {
 .prose {
   max-width: 65ch;
 }
+
+/* Fix cursor flickering in chat windows */
+/* Force text cursor on inputs and their containers */
+.react-flow__node-chatWindow input,
+.react-flow__node-chatWindow textarea,
+.react-flow__node-chatWindow [contenteditable="true"],
+.react-flow__node-chatWindow .select-text {
+  cursor: text !important;
+}
+
+/* Ensure the node wrapper itself doesn't fight for the cursor when hovering content */
+.react-flow__node-chatWindow:hover:has(input:hover),
+.react-flow__node-chatWindow:hover:has(textarea:hover),
+.react-flow__node-chatWindow:hover:has(.select-text:hover) {
+  cursor: default !important;
+}
+
+/* Use standard text cursor for content areas */
+.select-text {
+  user-select: text !important;
+  cursor: text !important;
+}

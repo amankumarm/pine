@@ -171,6 +171,26 @@ export function BoardFlow({
           }
         }
 
+        // Check if only streaming/thinking state changed to avoid full re-render
+        const isStreamingChanged = existingNode?.data?.isStreaming !== (streamingWindowId === window.id);
+        const isThinkingChanged = existingNode?.data?.isThinking !== (thinkingWindowId === window.id && streamingWindowId !== window.id);
+        const onlyStateChanged = existingNode && (isStreamingChanged || isThinkingChanged) && 
+          existingNode.data?.title === window.title &&
+          existingNode.data?.messages?.length === window.messages.length;
+
+        // If only streaming/thinking state changed, update just that property
+        if (onlyStateChanged) {
+          return {
+            ...existingNode,
+            position,
+            data: {
+              ...existingNode.data,
+              isStreaming: streamingWindowId === window.id,
+              isThinking: thinkingWindowId === window.id && streamingWindowId !== window.id,
+            },
+          };
+        }
+
         return {
           id: window.id,
           type: "chatWindow",
