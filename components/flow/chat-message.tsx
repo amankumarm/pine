@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { MessageRole } from "@prisma/client";
 
 interface ChatMessageProps {
@@ -31,6 +32,13 @@ export function ChatMessage({
 
   useEffect(() => {
     const handleSelection = () => {
+      // Don't handle selection during streaming
+      if (isStreaming) {
+        setSelectedRange(null);
+        setButtonPosition(null);
+        return;
+      }
+
       const selection = window.getSelection();
       if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
         setSelectedRange(null);
@@ -50,35 +58,20 @@ export function ChatMessage({
       ) {
         setSelectedRange(range.cloneRange());
 
-        // Calculate button position just above the first character of selection
-        // Use getClientRects() to get individual line rectangles, then use the first one
+        // Calculate button position just above the start of the selection
+        // Use viewport coordinates directly for fixed positioning
         const clientRects = range.getClientRects();
-        const messageRect = messageRef.current?.getBoundingClientRect();
+        if (clientRects.length === 0) return;
 
-        if (messageRect && clientRects.length > 0) {
-          // Get the first rectangle which represents the start of the selection
-          const startRect = clientRects[0];
+        // Get the first rectangle (start of selection)
+        const startRect = clientRects[0];
 
-          // Get the message bubble container (the inner div with the background)
-          const messageBubble = messageRef.current?.querySelector(
-            ".inline-block"
-          ) as HTMLElement;
-          const bubbleRect = messageBubble?.getBoundingClientRect();
-
-          if (bubbleRect) {
-            // Calculate position relative to the message container
-            setButtonPosition({
-              top: startRect.top - bubbleRect.top - 32, // Just above (button height ~28px + 4px gap)
-              left: startRect.left - bubbleRect.left, // Align with first character
-            });
-          } else {
-            // Fallback to messageRef if bubble not found
-            setButtonPosition({
-              top: startRect.top - messageRect.top - 32,
-              left: startRect.left - messageRect.left,
-            });
-          }
-        }
+        // Position in viewport coordinates (for fixed positioning)
+        // Button appears 32px above the selection start
+        setButtonPosition({
+          top: startRect.top - 40,
+          left: startRect.left,
+        });
       } else {
         setSelectedRange(null);
         setButtonPosition(null);
@@ -97,7 +90,7 @@ export function ChatMessage({
       document.removeEventListener("selectionchange", handleSelection);
       document.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [role]);
+  }, [role, isStreaming]);
 
   const handleFollowUp = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -130,31 +123,44 @@ export function ChatMessage({
       onMouseDown={handleMouseDown}
     >
       <div
-        className={`rounded-lg px-4 py-2 select-text text-foreground ${
+        className={`rounded-lg px-4 py-2 text-foreground ${
           role === MessageRole.USER
             ? "inline-block max-w-[80%] bg-muted"
             : "block w-full"
-        }`}
-        style={{ userSelect: role === MessageRole.ASSISTANT ? "text" : "auto" }}
+        } ${isStreaming ? "pointer-events-none" : "select-text"}`}
+        style={{
+          userSelect: isStreaming
+            ? "none"
+            : role === MessageRole.ASSISTANT
+            ? "text"
+            : "auto",
+          cursor: isStreaming ? "default" : undefined,
+        }}
       >
         <div className="whitespace-pre-wrap break-words">{content}</div>
         {isStreaming && (
           <span className="inline-block w-2 h-4 ml-1 bg-current animate-pulse" />
         )}
       </div>
-      {selectedRange && buttonPosition && role === MessageRole.ASSISTANT && (
-        <button
-          onClick={handleFollowUp}
-          onMouseDown={(e) => e.stopPropagation()}
-          className="absolute bg-primary text-primary-foreground px-3 py-1.5 rounded-md text-sm shadow-lg hover:bg-primary/90 transition-colors z-50 whitespace-nowrap"
-          style={{
-            top: `${buttonPosition.top}px`,
-            left: `${Math.max(0, Math.min(buttonPosition.left, 300))}px`, // Prevent going too far right (max ~300px for button width)
-          }}
-        >
-          Ask a follow up
-        </button>
-      )}
+      {selectedRange &&
+        buttonPosition &&
+        role === MessageRole.ASSISTANT &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <button
+            onClick={handleFollowUp}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="fixed bg-primary text-primary-foreground px-3 py-1.5 rounded-md text-sm shadow-lg hover:bg-primary/90 transition-colors whitespace-nowrap pointer-events-auto"
+            style={{
+              top: `${buttonPosition.top}px`,
+              left: `${buttonPosition.left}px`,
+              zIndex: 9999,
+            }}
+          >
+            Ask a follow up
+          </button>,
+          document.body
+        )}
     </div>
   );
 }

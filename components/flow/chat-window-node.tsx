@@ -107,7 +107,16 @@ function ChatWindowNode({ data }: NodeProps<ChatWindowNodeData>) {
     const inputElement = inputRef.current;
 
     const handleWheel = (e: WheelEvent) => {
-      // Prevent ReactFlow from zooming when scrolling inside the chat content
+      // Pinch-to-zoom and Ctrl+scroll set ctrlKey on wheel events
+      if (e.ctrlKey) {
+        // Prevent browser's native zoom
+        e.preventDefault();
+        // Let event bubble to ReactFlow for canvas zoom
+        return;
+      }
+
+      // Normal scroll - stop propagation to prevent ReactFlow zoom
+      // Content scrolls naturally
       e.stopPropagation();
     };
 
@@ -134,7 +143,7 @@ function ChatWindowNode({ data }: NodeProps<ChatWindowNodeData>) {
   };
 
   return (
-    <div className="bg-background border-2 border-border rounded-lg shadow-lg min-w-[400px] max-w-[500px] min-h-[500px] max-h-[600px] flex flex-col group">
+    <div className="bg-background border-2 border-border rounded-lg shadow-lg min-w-[400px] max-w-[500px] min-h-[500px] max-h-[800px] flex flex-col group">
       <Handle type="target" position={Position.Left} />
       <div className="p-4 border-b border-border shrink-0">
         <div className="flex items-center gap-2">

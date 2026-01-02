@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { Drawer } from 'vaul';
-import { useState, useMemo } from 'react';
-import { MessageSquare, Search } from 'lucide-react';
+import { Drawer } from "vaul";
+import { useState, useMemo } from "react";
+import { MessageSquare, Search } from "lucide-react";
 
 interface Message {
   role: string;
@@ -23,44 +23,46 @@ interface AllChatsDrawerProps {
   onChatClick: (windowId: string) => void;
 }
 
-export function AllChatsDrawer({ parentWindows, onChatClick }: AllChatsDrawerProps) {
-  const [searchQuery, setSearchQuery] = useState('');
+export function AllChatsDrawer({
+  parentWindows,
+  onChatClick,
+}: AllChatsDrawerProps) {
+  const [searchQuery, setSearchQuery] = useState("");
   const [isOpen, setIsOpen] = useState(false);
 
   const sortedAndFilteredWindows = useMemo(() => {
     const reversed = [...parentWindows].reverse();
-    
-    return reversed.filter(w => 
-      w.title.toLowerCase().includes(searchQuery.toLowerCase())
-    ).sort((a, b) => {
-      const getLastTime = (w: ChatWindow) => {
-        if (!w.messages || w.messages.length === 0) return -1;
-        const lastMsg = w.messages[w.messages.length - 1];
-        return new Date(lastMsg.createdAt).getTime();
-      };
-      
-      const timeA = getLastTime(a);
-      const timeB = getLastTime(b);
-      
-      if (timeA > 0 && timeB > 0) {
-        return timeB - timeA;
-      }
-      return 0; 
-    });
 
+    return reversed
+      .filter((w) => w.title.toLowerCase().includes(searchQuery.toLowerCase()))
+      .sort((a, b) => {
+        const getLastTime = (w: ChatWindow) => {
+          if (!w.messages || w.messages.length === 0) return -1;
+          const lastMsg = w.messages[w.messages.length - 1];
+          return new Date(lastMsg.createdAt).getTime();
+        };
+
+        const timeA = getLastTime(a);
+        const timeB = getLastTime(b);
+
+        if (timeA > 0 && timeB > 0) {
+          return timeB - timeA;
+        }
+        return 0;
+      });
   }, [parentWindows, searchQuery]);
 
   return (
     <Drawer.Root direction="right" open={isOpen} onOpenChange={setIsOpen}>
-      <Drawer.Trigger className="relative flex h-9 flex-shrink-0 items-center justify-center gap-2 overflow-hidden rounded-md bg-white px-3 text-xs font-medium shadow-sm transition-all hover:bg-zinc-50 border border-zinc-200">
+      <Drawer.Trigger className="relative flex h-9 flex-shrink-0 items-center justify-center gap-1 overflow-hidden rounded-md bg-white px-3 text-xs font-medium shadow-sm transition-all hover:bg-zinc-50 border border-zinc-200">
         <MessageSquare className="h-3.5 w-3.5" />
-        <span>All Chat</span>
+        <span>All Chats</span>
       </Drawer.Trigger>
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 bg-transparent z-50" />
         <Drawer.Content
           className="fixed right-0 top-0 bottom-0 z-50 outline-none w-[260px] flex shadow-2xl"
-          style={{ '--initial-transform': '100%' } as React.CSSProperties}
+          style={{ "--initial-transform": "100%" } as React.CSSProperties}
         >
           <div className="bg-[#F9F9F9] h-full w-full grow flex flex-col border-l border-zinc-200">
             {/* Header */}
@@ -98,7 +100,7 @@ export function AllChatsDrawer({ parentWindows, onChatClick }: AllChatsDrawerPro
                       className="group flex items-center w-full text-left px-2 py-1.5 rounded-md hover:bg-zinc-200/50 transition-colors"
                     >
                       <span className="flex-1 truncate text-xs text-zinc-700 group-hover:text-zinc-900">
-                        {window.title || 'Untitled Chat'}
+                        {window.title || "Untitled Chat"}
                       </span>
                     </button>
                   ))
