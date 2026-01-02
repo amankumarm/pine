@@ -89,7 +89,9 @@ export function BoardFlowClient({ board }: BoardFlowClientProps) {
 
           // Update local state to replace temp ID with real ID
           setWindows((prev) =>
-            prev.map((w) => (w.id === windowId ? { ...w, id: activeWindowId } : w))
+            prev.map((w) =>
+              w.id === windowId ? { ...w, id: activeWindowId } : w
+            )
           );
         } catch (error) {
           console.error("Error lazy creating window:", error);
@@ -339,40 +341,20 @@ export function BoardFlowClient({ board }: BoardFlowClientProps) {
       const sourceWindow = windows.find((w) => w.id === sourceWindowId);
       if (!sourceWindow) return;
 
-      // Create optimistic window and edge immediately
-      const tempWindowId = `temp-window-${Date.now()}`;
-      const tempEdgeId = `temp-edge-${Date.now()}`;
       const newPositionX = sourceWindow.positionX + 600; // Increased distance from parent
       const newPositionY = sourceWindow.positionY;
 
-      const optimisticWindow: ChatWindow = {
-        id: tempWindowId,
-        title: "Follow-up",
-        positionX: newPositionX,
-        positionY: newPositionY,
-        messages: [],
-      };
-
-      const optimisticEdge: EdgeData = {
-        id: tempEdgeId,
-        sourceWindowId,
-        targetWindowId: tempWindowId,
-        selectedText,
-        sourceMessageId: messageId,
-      };
-
-      // Add optimistic window and edge immediately
-      setWindows((prev) => [...prev, optimisticWindow]);
-      setEdges((prev) => [...prev, optimisticEdge]);
-
       try {
-        // Create new window via API
-        const newWindowResponse = await fetch(
-          `/api/boards/${board.id}/windows`,
+        // Create follow-up window and edge atomically via API
+        const followUpResponse = await fetch(
+          `/api/boards/${board.id}/follow-up`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
+              sourceWindowId,
+              sourceMessageId: messageId,
+              selectedText,
               title: "Follow-up",
               positionX: newPositionX,
               positionY: newPositionY,
@@ -380,40 +362,37 @@ export function BoardFlowClient({ board }: BoardFlowClientProps) {
           }
         );
 
-        if (!newWindowResponse.ok) {
-          throw new Error("Failed to create window");
+        if (!followUpResponse.ok) {
+          throw new Error("Failed to create follow-up");
         }
 
-        const newWindow = await newWindowResponse.json();
+        const result = await followUpResponse.json();
+        const { window: newWindow, edge: newEdge } = result;
 
-        // Create edge via API
-        const edgeResponse = await fetch(`/api/boards/${board.id}/edges`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sourceWindowId,
-            targetWindowId: newWindow.id,
-            selectedText,
-            sourceMessageId: messageId,
-          }),
-        });
+        // Update state directly with the new window and edge (no need to fetch entire board)
+        setWindows((prev) => [
+          ...prev,
+          {
+            id: newWindow.id,
+            title: newWindow.title,
+            positionX: newWindow.positionX,
+            positionY: newWindow.positionY,
+            messages: [], // New window starts with no messages
+          },
+        ]);
 
-        if (!edgeResponse.ok) {
-          throw new Error("Failed to create edge");
-        }
-
-        // Refresh board data to get real IDs and sync with server
-        const boardResponse = await fetch(`/api/boards/${board.id}`);
-        if (boardResponse.ok) {
-          const updatedBoard = await boardResponse.json();
-          setWindows(updatedBoard.chatWindows);
-          setEdges(updatedBoard.edges);
-        }
+        setEdges((prev) => [
+          ...prev,
+          {
+            id: newEdge.id,
+            sourceWindowId: newEdge.sourceWindowId,
+            targetWindowId: newEdge.targetWindowId,
+            selectedText: newEdge.selectedText,
+            sourceMessageId: newEdge.sourceMessageId,
+          },
+        ]);
       } catch (error) {
         console.error("Error creating follow-up:", error);
-        // Remove optimistic window and edge on error
-        setWindows((prev) => prev.filter((w) => w.id !== tempWindowId));
-        setEdges((prev) => prev.filter((e) => e.id !== tempEdgeId));
       }
     },
     [board.id, windows]
@@ -448,8 +427,6 @@ export function BoardFlowClient({ board }: BoardFlowClientProps) {
       messages: [],
     };
 
-
-    
     setFocusTarget({ id: tempWindowId, timestamp: Date.now() });
     setWindows((prev) => [...prev, optimisticWindow]);
   }, [windows]);
