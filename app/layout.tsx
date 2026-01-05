@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { Geist, Geist_Mono, Oswald } from "next/font/google";
 import "./globals.css";
 
@@ -22,7 +23,9 @@ export const metadata: Metadata = {
   title: "Pine - Visual AI Conversations",
   description:
     "Branch AI conversations visually. Create multiple chat windows, explore different paths, and see how ideas connect.",
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+  ),
   openGraph: {
     title: "Pine - Visual AI Conversations",
     description: "Branch AI conversations visually on a spatial canvas.",
@@ -74,6 +77,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} ${bogleFont.variable} antialiased`}
       >
         {children}
+        <Analytics />
       </body>
     </html>
   );

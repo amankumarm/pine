@@ -104,15 +104,7 @@ export async function getWindowWithMessages(windowId: string) {
         userId: dbUser.id,
       },
     },
-    select: {
-      id: true,
-      createdAt: true,
-      updatedAt: true,
-      boardId: true,
-      title: true,
-      positionX: true,
-      positionY: true,
-      modelId: true,
+    include: {
       messages: {
         orderBy: { createdAt: "asc" },
       },
