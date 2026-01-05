@@ -1,5 +1,5 @@
-import { prisma } from '@/lib/prisma'
-import { getCurrentUser } from '@/lib/auth'
+import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/auth";
 
 export async function createChatWindow(
   boardId: string,
@@ -7,17 +7,17 @@ export async function createChatWindow(
   positionX: number,
   positionY: number
 ) {
-  const user = await getCurrentUser()
+  const user = await getCurrentUser();
   if (!user) {
-    throw new Error('Unauthorized')
+    throw new Error("Unauthorized");
   }
 
   const dbUser = await prisma.user.findUnique({
     where: { email: user.email! },
-  })
+  });
 
   if (!dbUser) {
-    throw new Error('User not found')
+    throw new Error("User not found");
   }
 
   // Verify board belongs to user
@@ -26,10 +26,10 @@ export async function createChatWindow(
       id: boardId,
       userId: dbUser.id,
     },
-  })
+  });
 
   if (!board) {
-    throw new Error('Board not found')
+    throw new Error("Board not found");
   }
 
   return prisma.chatWindow.create({
@@ -39,7 +39,7 @@ export async function createChatWindow(
       positionX,
       positionY,
     },
-  })
+  });
 }
 
 export async function updateWindowPosition(
@@ -47,17 +47,17 @@ export async function updateWindowPosition(
   positionX: number,
   positionY: number
 ) {
-  const user = await getCurrentUser()
+  const user = await getCurrentUser();
   if (!user) {
-    throw new Error('Unauthorized')
+    throw new Error("Unauthorized");
   }
 
   const dbUser = await prisma.user.findUnique({
     where: { email: user.email! },
-  })
+  });
 
   if (!dbUser) {
-    throw new Error('User not found')
+    throw new Error("User not found");
   }
 
   // Verify window belongs to user's board
@@ -68,10 +68,10 @@ export async function updateWindowPosition(
         userId: dbUser.id,
       },
     },
-  })
+  });
 
   if (!window) {
-    throw new Error('Window not found')
+    throw new Error("Window not found");
   }
 
   return prisma.chatWindow.update({
@@ -80,21 +80,21 @@ export async function updateWindowPosition(
       positionX,
       positionY,
     },
-  })
+  });
 }
 
 export async function getWindowWithMessages(windowId: string) {
-  const user = await getCurrentUser()
+  const user = await getCurrentUser();
   if (!user) {
-    throw new Error('Unauthorized')
+    throw new Error("Unauthorized");
   }
 
   const dbUser = await prisma.user.findUnique({
     where: { email: user.email! },
-  })
+  });
 
   if (!dbUser) {
-    throw new Error('User not found')
+    throw new Error("User not found");
   }
 
   const window = await prisma.chatWindow.findFirst({
@@ -104,32 +104,40 @@ export async function getWindowWithMessages(windowId: string) {
         userId: dbUser.id,
       },
     },
-    include: {
+    select: {
+      id: true,
+      createdAt: true,
+      updatedAt: true,
+      boardId: true,
+      title: true,
+      positionX: true,
+      positionY: true,
+      modelId: true,
       messages: {
-        orderBy: { createdAt: 'asc' },
+        orderBy: { createdAt: "asc" },
       },
     },
-  })
+  });
 
   if (!window) {
-    throw new Error('Window not found')
+    throw new Error("Window not found");
   }
 
-  return window
+  return window;
 }
 
 export async function getWindowContext(windowId: string) {
-  const user = await getCurrentUser()
+  const user = await getCurrentUser();
   if (!user) {
-    throw new Error('Unauthorized')
+    throw new Error("Unauthorized");
   }
 
   const dbUser = await prisma.user.findUnique({
     where: { email: user.email! },
-  })
+  });
 
   if (!dbUser) {
-    throw new Error('User not found')
+    throw new Error("User not found");
   }
 
   const window = await prisma.chatWindow.findFirst({
@@ -141,41 +149,41 @@ export async function getWindowContext(windowId: string) {
     },
     include: {
       messages: {
-        orderBy: { createdAt: 'asc' },
+        orderBy: { createdAt: "asc" },
       },
       board: {
         include: {
           chatWindows: {
             include: {
               messages: {
-                orderBy: { createdAt: 'asc' },
+                orderBy: { createdAt: "asc" },
               },
             },
           },
         },
       },
     },
-  })
+  });
 
   if (!window) {
-    throw new Error('Window not found')
+    throw new Error("Window not found");
   }
 
-  return window
+  return window;
 }
 
 export async function updateWindowTitle(windowId: string, title: string) {
-  const user = await getCurrentUser()
+  const user = await getCurrentUser();
   if (!user) {
-    throw new Error('Unauthorized')
+    throw new Error("Unauthorized");
   }
 
   const dbUser = await prisma.user.findUnique({
     where: { email: user.email! },
-  })
+  });
 
   if (!dbUser) {
-    throw new Error('User not found')
+    throw new Error("User not found");
   }
 
   // Verify window belongs to user's board
@@ -186,30 +194,30 @@ export async function updateWindowTitle(windowId: string, title: string) {
         userId: dbUser.id,
       },
     },
-  })
+  });
 
   if (!window) {
-    throw new Error('Window not found')
+    throw new Error("Window not found");
   }
 
   return prisma.chatWindow.update({
     where: { id: windowId },
     data: { title },
-  })
+  });
 }
 
 export async function updateWindowModel(windowId: string, modelId: string) {
-  const user = await getCurrentUser()
+  const user = await getCurrentUser();
   if (!user) {
-    throw new Error('Unauthorized')
+    throw new Error("Unauthorized");
   }
 
   const dbUser = await prisma.user.findUnique({
     where: { email: user.email! },
-  })
+  });
 
   if (!dbUser) {
-    throw new Error('User not found')
+    throw new Error("User not found");
   }
 
   // Verify window belongs to user's board
@@ -220,14 +228,14 @@ export async function updateWindowModel(windowId: string, modelId: string) {
         userId: dbUser.id,
       },
     },
-  })
+  });
 
   if (!window) {
-    throw new Error('Window not found')
+    throw new Error("Window not found");
   }
 
   return prisma.chatWindow.update({
     where: { id: windowId },
     data: { modelId },
-  })
+  });
 }
