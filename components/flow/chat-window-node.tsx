@@ -17,6 +17,7 @@ interface ChatWindowNodeData {
   windowId: string;
   title: string;
   messages: Message[];
+  modelId: string;
   isStreaming?: boolean;
   isThinking?: boolean;
   onSendMessage: (windowId: string, content: string) => Promise<void>;
@@ -27,6 +28,7 @@ interface ChatWindowNodeData {
     range: Range
   ) => void;
   onTitleChange?: (windowId: string, newTitle: string) => Promise<void>;
+  onModelChange?: (windowId: string, modelId: string) => Promise<void>;
 }
 
 function ChatWindowNode({ data }: NodeProps<ChatWindowNodeData>) {
@@ -34,11 +36,13 @@ function ChatWindowNode({ data }: NodeProps<ChatWindowNodeData>) {
     windowId,
     title,
     messages,
+    modelId,
     isStreaming = false,
     isThinking = false,
     onSendMessage,
     onTextSelect,
     onTitleChange,
+    onModelChange,
   } = data;
 
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -58,6 +62,12 @@ function ChatWindowNode({ data }: NodeProps<ChatWindowNodeData>) {
 
   const handleSend = async (content: string) => {
     await onSendMessage(windowId, content);
+  };
+
+  const handleModelChange = async (newModelId: string) => {
+    if (onModelChange) {
+      await onModelChange(windowId, newModelId);
+    }
   };
 
   const handleTextSelect = (
@@ -143,7 +153,7 @@ function ChatWindowNode({ data }: NodeProps<ChatWindowNodeData>) {
   };
 
   return (
-    <div className="bg-background border-2 border-border rounded-lg shadow-lg min-w-[400px] max-w-[500px] min-h-[500px] max-h-[800px] flex flex-col group">
+    <div className="bg-background border-2 border-border rounded-lg shadow-lg min-w-[500px] max-w-[500px] min-h-[500px] max-h-[800px] flex flex-col group">
       <Handle type="target" position={Position.Left} />
       <div className="p-4 border-b border-border shrink-0">
         <div className="flex items-center gap-2">
@@ -253,6 +263,8 @@ function ChatWindowNode({ data }: NodeProps<ChatWindowNodeData>) {
       >
         <ChatInput
           onSend={handleSend}
+          selectedModelId={modelId}
+          onModelChange={handleModelChange}
           disabled={isStreaming || isThinking}
           placeholder="Type your message..."
         />

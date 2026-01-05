@@ -17,6 +17,7 @@ interface ChatWindow {
   title: string;
   positionX: number;
   positionY: number;
+  modelId: string;
   messages: Message[];
 }
 
@@ -330,6 +331,49 @@ export function BoardFlowClient({ board }: BoardFlowClientProps) {
     [board.id]
   );
 
+  const handleWindowModelChange = useCallback(
+    async (windowId: string, modelId: string) => {
+      // Store previous modelId for potential revert
+      let previousModelId: string | undefined;
+      setWindows((prev) => {
+        const window = prev.find((w) => w.id === windowId);
+        previousModelId = window?.modelId;
+        return prev.map((w) => (w.id === windowId ? { ...w, modelId } : w));
+      });
+
+      // Skip API call for temporary windows (optimistic updates)
+      if (windowId.startsWith("temp-")) {
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `/api/boards/${board.id}/windows/${windowId}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ modelId }),
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to update window model");
+        }
+      } catch (error) {
+        console.error("Error updating window model:", error);
+        // Revert on error
+        if (previousModelId !== undefined) {
+          setWindows((prev) =>
+            prev.map((w) =>
+              w.id === windowId ? { ...w, modelId: previousModelId! } : w
+            )
+          );
+        }
+      }
+    },
+    [board.id]
+  );
+
   const handleTextSelect = useCallback(
     async (
       selectedText: string,
@@ -377,6 +421,7 @@ export function BoardFlowClient({ board }: BoardFlowClientProps) {
             title: newWindow.title,
             positionX: newWindow.positionX,
             positionY: newWindow.positionY,
+            modelId: newWindow.modelId,
             messages: [], // New window starts with no messages
           },
         ]);
@@ -424,6 +469,7 @@ export function BoardFlowClient({ board }: BoardFlowClientProps) {
       title: "New Chat",
       positionX: newX,
       positionY: newY,
+      modelId: "openai/gpt-4o",
       messages: [],
     };
 
@@ -443,6 +489,7 @@ export function BoardFlowClient({ board }: BoardFlowClientProps) {
       onTextSelect={handleTextSelect}
       onAddWindow={handleAddWindow}
       onWindowTitleChange={handleWindowTitleChange}
+      onWindowModelChange={handleWindowModelChange}
       focusTarget={focusTarget}
     />
   );

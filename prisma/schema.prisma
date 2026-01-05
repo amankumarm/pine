@@ -43,6 +43,7 @@ model ChatWindow {
   title         String
   positionX     Float
   positionY     Float
+  modelId       String    @default("openai/gpt-4o")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   

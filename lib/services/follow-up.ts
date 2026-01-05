@@ -34,16 +34,23 @@ export async function createFollowUpWindow(
     throw new Error("Board not found or unauthorized");
   }
 
+  // Get source window to inherit modelId
+  const sourceWindow = await prisma.chatWindow.findUnique({
+    where: { id: sourceWindowId },
+    select: { modelId: true },
+  })
+
   // Create window and edge in a transaction to ensure atomicity
   // Board verification is already done above, so we can proceed directly
   return prisma.$transaction(async (tx) => {
-    // Create the follow-up window
+    // Create the follow-up window with inherited modelId
     const newWindow = await tx.chatWindow.create({
       data: {
         boardId,
         title,
         positionX,
         positionY,
+        modelId: sourceWindow?.modelId || 'openai/gpt-4o',
       },
     });
 

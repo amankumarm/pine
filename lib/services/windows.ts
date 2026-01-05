@@ -197,3 +197,37 @@ export async function updateWindowTitle(windowId: string, title: string) {
     data: { title },
   })
 }
+
+export async function updateWindowModel(windowId: string, modelId: string) {
+  const user = await getCurrentUser()
+  if (!user) {
+    throw new Error('Unauthorized')
+  }
+
+  const dbUser = await prisma.user.findUnique({
+    where: { email: user.email! },
+  })
+
+  if (!dbUser) {
+    throw new Error('User not found')
+  }
+
+  // Verify window belongs to user's board
+  const window = await prisma.chatWindow.findFirst({
+    where: {
+      id: windowId,
+      board: {
+        userId: dbUser.id,
+      },
+    },
+  })
+
+  if (!window) {
+    throw new Error('Window not found')
+  }
+
+  return prisma.chatWindow.update({
+    where: { id: windowId },
+    data: { modelId },
+  })
+}

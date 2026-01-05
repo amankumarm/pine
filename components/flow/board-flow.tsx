@@ -34,6 +34,7 @@ interface ChatWindow {
   title: string;
   positionX: number;
   positionY: number;
+  modelId: string;
   messages: Message[];
 }
 
@@ -65,6 +66,7 @@ interface BoardFlowProps {
   ) => Promise<void>;
   onAddWindow: () => Promise<void>;
   onWindowTitleChange?: (windowId: string, newTitle: string) => Promise<void>;
+  onWindowModelChange?: (windowId: string, modelId: string) => Promise<void>;
   focusTarget?: { id: string; timestamp: number } | null;
 }
 
@@ -83,6 +85,7 @@ export function BoardFlow({
   onTextSelect,
   onAddWindow,
   onWindowTitleChange,
+  onWindowModelChange,
   focusTarget,
 }: BoardFlowProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -199,6 +202,7 @@ export function BoardFlow({
           data: {
             windowId: window.id,
             title: window.title,
+            modelId: window.modelId || 'openai/gpt-4o',
             messages: window.messages.map((msg) => ({
               ...msg,
               createdAt:
@@ -219,6 +223,7 @@ export function BoardFlow({
               await onTextSelect(selectedText, messageId, windowId, range);
             },
             onTitleChange: onWindowTitleChange,
+            onModelChange: onWindowModelChange,
           },
         };
       });
@@ -232,6 +237,7 @@ export function BoardFlow({
     onSendMessage,
     onTextSelect,
     onWindowTitleChange,
+    onWindowModelChange,
     setNodes,
   ]);
 
