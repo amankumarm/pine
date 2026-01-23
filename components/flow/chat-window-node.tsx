@@ -208,8 +208,15 @@ function ChatWindowNode({ data }: NodeProps<ChatWindowNodeData>) {
         </div>
       )}
       {followUpText && (
-        <div className="px-4 py-3 border-b border-border text-base text-black shrink-0 cursor-move" data-handle>
-          Follow up to: {'"'}<span className="font-medium">{followUpText}</span>{'"'}
+        <div
+          className="px-4 py-3 border-b border-border text-base text-black shrink-0 cursor-move "
+          data-handle
+          title={`Follow up to: "${followUpText}"`}
+        >
+          Follow up to:
+          <span className="font-[550] text-sm text-muted-foreground line-clamp-2 text-ellipsis">
+            {followUpText}
+          </span>
         </div>
       )}
       <div
