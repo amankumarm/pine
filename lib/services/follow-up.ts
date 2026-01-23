@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUserFromSession } from "@/lib/auth";
 
 export async function createFollowUpWindow(
   boardId: string,
@@ -8,53 +8,50 @@ export async function createFollowUpWindow(
   selectedText: string,
   title: string,
   positionX: number,
-  positionY: number
+  positionY: number,
 ) {
-  const user = await getCurrentUser();
-  if (!user) {
+  const user = await getCurrentUserFromSession();
+
+  if (!user?.email) {
     throw new Error("Unauthorized");
   }
 
-  // Optimize: Verify board ownership in a single query
-  // Check if board exists and belongs to user with this email
-  // This reduces database round trips from 3 queries to 1
-  const board = await prisma.board.findFirst({
-    where: {
-      id: boardId,
-      user: {
-        email: user.email!,
-      },
-    },
-    select: {
-      id: true, // Only select what we need for verification
-    },
+  // Get user ID first (fast, uses unique index on users.email)
+  const dbUser = await prisma.user.findUnique({
+    where: { email: user.email },
+    select: { id: true },
   });
 
-  if (!board) {
-    throw new Error("Board not found or unauthorized");
+  if (!dbUser) {
+    throw new Error("User not found");
   }
 
-  // Get source window to inherit modelId
-  const sourceWindow = await prisma.chatWindow.findUnique({
-    where: { id: sourceWindowId },
-    select: { modelId: true },
-  })
+  // Single optimized query with database-level filtering
+  const sourceWindow = await prisma.chatWindow.findFirst({
+    where: {
+      id: sourceWindowId,
+      boardId: boardId, // Validate boardId match at DB level
+      board: { userId: dbUser.id }, // Validate ownership at DB level
+    },
+    select: { modelId: true, boardId: true },
+  });
 
-  // Create window and edge in a transaction to ensure atomicity
-  // Board verification is already done above, so we can proceed directly
-  return prisma.$transaction(async (tx) => {
-    // Create the follow-up window with inherited modelId
+  if (!sourceWindow) {
+    throw new Error("Source window not found or unauthorized");
+  }
+
+  // Transaction for atomic create
+  const result = await prisma.$transaction(async (tx) => {
     const newWindow = await tx.chatWindow.create({
       data: {
         boardId,
         title,
         positionX,
         positionY,
-        modelId: sourceWindow?.modelId || 'openai/gpt-4o',
+        modelId: sourceWindow.modelId,
       },
     });
 
-    // Create the edge connecting source to follow-up window
     const edge = await tx.edge.create({
       data: {
         boardId,
@@ -65,9 +62,8 @@ export async function createFollowUpWindow(
       },
     });
 
-    return {
-      window: newWindow,
-      edge,
-    };
+    return { window: newWindow, edge };
   });
+
+  return result;
 }

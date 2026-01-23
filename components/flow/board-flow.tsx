@@ -174,12 +174,75 @@ export function BoardFlow({
           }
         }
 
+        // Find incoming edge to get follow-up text
+        const incomingEdge = edges.find((e) => e.targetWindowId === window.id);
+        const followUpText = incomingEdge?.selectedText;
+
         // Check if only streaming/thinking state changed to avoid full re-render
         const isStreamingChanged = existingNode?.data?.isStreaming !== (streamingWindowId === window.id);
         const isThinkingChanged = existingNode?.data?.isThinking !== (thinkingWindowId === window.id && streamingWindowId !== window.id);
+        const isStreaming = streamingWindowId === window.id;
+        
+        // Check if only message content changed (for streaming messages)
+        const messagesChanged = existingNode?.data?.messages?.length !== window.messages.length;
+        let onlyContentChanged = false;
+        
+        if (!messagesChanged && existingNode && isStreaming && window.messages.length > 0) {
+          // Compare last message content - if only the last message content changed, it's a content-only update
+          const existingLastMsg = existingNode.data?.messages?.[existingNode.data.messages.length - 1];
+          const newLastMsg = window.messages[window.messages.length - 1];
+          
+          if (
+            existingLastMsg &&
+            newLastMsg &&
+            existingLastMsg.id === newLastMsg.id &&
+            existingLastMsg.role === newLastMsg.role &&
+            existingLastMsg.content !== newLastMsg.content
+          ) {
+            // Check if all other messages are the same
+            let allOtherMessagesSame = true;
+            for (let i = 0; i < existingNode.data.messages.length - 1; i++) {
+              const prevMsg = existingNode.data.messages[i];
+              const nextMsg = window.messages[i];
+              if (
+                prevMsg.id !== nextMsg.id ||
+                prevMsg.content !== nextMsg.content ||
+                prevMsg.role !== nextMsg.role
+              ) {
+                allOtherMessagesSame = false;
+                break;
+              }
+            }
+            
+            if (allOtherMessagesSame) {
+              // Only the last message's content changed - update just that message
+              onlyContentChanged = true;
+              const updatedMessages = [...existingNode.data.messages];
+              updatedMessages[updatedMessages.length - 1] = {
+                ...updatedMessages[updatedMessages.length - 1],
+                content: newLastMsg.content,
+              };
+              return {
+                ...existingNode,
+                position,
+                data: {
+                  ...existingNode.data,
+                  messages: updatedMessages,
+                  isStreaming,
+                  isThinking: thinkingWindowId === window.id && !isStreaming,
+                  followUpText: existingNode.data.followUpText,
+                },
+              };
+            }
+          }
+        }
+        
         const onlyStateChanged = existingNode && (isStreamingChanged || isThinkingChanged) && 
           existingNode.data?.title === window.title &&
-          existingNode.data?.messages?.length === window.messages.length;
+          existingNode.data?.modelId === window.modelId &&
+          existingNode.data?.messages?.length === window.messages.length &&
+          existingNode.data?.followUpText === followUpText &&
+          !onlyContentChanged;
 
         // If only streaming/thinking state changed, update just that property
         if (onlyStateChanged) {
@@ -188,8 +251,8 @@ export function BoardFlow({
             position,
             data: {
               ...existingNode.data,
-              isStreaming: streamingWindowId === window.id,
-              isThinking: thinkingWindowId === window.id && streamingWindowId !== window.id,
+              isStreaming,
+              isThinking: thinkingWindowId === window.id && !isStreaming,
             },
           };
         }
@@ -213,6 +276,7 @@ export function BoardFlow({
             isStreaming: streamingWindowId === window.id,
             isThinking:
               thinkingWindowId === window.id && streamingWindowId !== window.id,
+            followUpText,
             onSendMessage,
             onTextSelect: async (
               selectedText: string,
@@ -231,6 +295,7 @@ export function BoardFlow({
     });
   }, [
     windows,
+    edges,
     streamingWindowId,
     thinkingWindowId,
     draggingNodeId,
@@ -247,7 +312,6 @@ export function BoardFlow({
       id: edge.id,
       source: edge.sourceWindowId,
       target: edge.targetWindowId,
-      label: edge.selectedText.substring(0, 30) + "...",
       type: "bezier",
     }));
     setEdges(flowEdges);

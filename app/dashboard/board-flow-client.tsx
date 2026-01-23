@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { flushSync } from "react-dom";
+import { useState, useCallback, useRef } from "react";
 import { BoardFlow } from "@/components/flow/board-flow";
 import { MessageRole } from "@prisma/client";
 
@@ -54,49 +53,95 @@ export function BoardFlowClient({ board }: BoardFlowClientProps) {
     timestamp: number;
   } | null>(null);
 
+  const pendingFollowUps = useRef<Map<string, Promise<string>>>(new Map());
+
   const handleSendMessage = useCallback(
     async (windowId: string, content: string) => {
       let activeWindowId = windowId;
 
       // Check if this is a temporary window that needs to be created first
       if (windowId.startsWith("temp-")) {
-        try {
-          // Find the temp window data
-          const tempWindow = windows.find((w) => w.id === windowId);
-          if (!tempWindow) {
-            throw new Error("Temporary window not found");
-          }
-
-          // Create the real window
-          const createResponse = await fetch(
-            `/api/boards/${board.id}/windows`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                title: tempWindow.title,
-                positionX: tempWindow.positionX,
-                positionY: tempWindow.positionY,
-              }),
+        // Handle race condition: if this is a follow-up window, wait for the API call
+        if (windowId.startsWith("temp-follow-up-")) {
+          const pendingPromise = pendingFollowUps.current.get(windowId);
+          if (pendingPromise) {
+            try {
+              activeWindowId = await pendingPromise;
+            } catch (error) {
+              console.error("Error waiting for follow-up creation:", error);
+              return;
             }
-          );
+          } else {
+            // Follow-up API call already completed, but window still has temp ID
+            // This shouldn't happen, but handle gracefully by creating window normally
+            const tempWindow = windows.find((w) => w.id === windowId);
+            if (!tempWindow) {
+              throw new Error("Temporary window not found");
+            }
 
-          if (!createResponse.ok) {
-            throw new Error("Failed to create window");
+            const createResponse = await fetch(
+              `/api/boards/${board.id}/windows`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  title: tempWindow.title,
+                  positionX: tempWindow.positionX,
+                  positionY: tempWindow.positionY,
+                }),
+              }
+            );
+
+            if (!createResponse.ok) {
+              throw new Error("Failed to create window");
+            }
+
+            const newWindow = await createResponse.json();
+            activeWindowId = newWindow.id;
+
+            setWindows((prev) =>
+              prev.map((w) =>
+                w.id === windowId ? { ...w, id: activeWindowId } : w
+              )
+            );
           }
+        } else {
+          // Regular temp window (from Add New Chat) - create it lazily
+          try {
+            const tempWindow = windows.find((w) => w.id === windowId);
+            if (!tempWindow) {
+              throw new Error("Temporary window not found");
+            }
 
-          const newWindow = await createResponse.json();
-          activeWindowId = newWindow.id;
+            const createResponse = await fetch(
+              `/api/boards/${board.id}/windows`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  title: tempWindow.title,
+                  positionX: tempWindow.positionX,
+                  positionY: tempWindow.positionY,
+                }),
+              }
+            );
 
-          // Update local state to replace temp ID with real ID
-          setWindows((prev) =>
-            prev.map((w) =>
-              w.id === windowId ? { ...w, id: activeWindowId } : w
-            )
-          );
-        } catch (error) {
-          console.error("Error lazy creating window:", error);
-          return;
+            if (!createResponse.ok) {
+              throw new Error("Failed to create window");
+            }
+
+            const newWindow = await createResponse.json();
+            activeWindowId = newWindow.id;
+
+            setWindows((prev) =>
+              prev.map((w) =>
+                w.id === windowId ? { ...w, id: activeWindowId } : w
+              )
+            );
+          } catch (error) {
+            console.error("Error lazy creating window:", error);
+            return;
+          }
         }
       }
 
@@ -144,6 +189,60 @@ export function BoardFlowClient({ board }: BoardFlowClientProps) {
         let assistantMessageId = "";
         let fullContent = "";
         let messageAdded = false;
+        let pendingUpdate: { content: string; messageId: string } | null = null;
+        let updateTimeoutId: ReturnType<typeof setTimeout> | null = null;
+        const STREAM_UPDATE_INTERVAL = 150; // Update every 150ms to reduce re-renders and flicker
+
+        // Throttled update function - updates less frequently to reduce re-renders
+        const scheduleUpdate = () => {
+          if (updateTimeoutId !== null) return; // Update already scheduled
+
+          updateTimeoutId = setTimeout(() => {
+            updateTimeoutId = null;
+            if (pendingUpdate) {
+              const { content, messageId } = pendingUpdate;
+              setWindows((prev) => {
+                return prev.map((w) => {
+                  if (w.id !== activeWindowId) return w;
+
+                  const existingMessageIndex = w.messages.findIndex(
+                    (m) => m.id === messageId
+                  );
+
+                  if (existingMessageIndex >= 0) {
+                    // Only update if content actually changed
+                    const existingMessage = w.messages[existingMessageIndex];
+                    if (existingMessage.content === content) {
+                      return w; // Return same reference if unchanged
+                    }
+                    // Update existing message
+                    const newMessages = [...w.messages];
+                    newMessages[existingMessageIndex] = {
+                      ...newMessages[existingMessageIndex],
+                      content,
+                    };
+                    return { ...w, messages: newMessages };
+                  } else {
+                    // Add new message
+                    return {
+                      ...w,
+                      messages: [
+                        ...w.messages,
+                        {
+                          id: messageId,
+                          role: MessageRole.ASSISTANT,
+                          content,
+                          createdAt: new Date(),
+                        },
+                      ],
+                    };
+                  }
+                });
+              });
+              pendingUpdate = null;
+            }
+          }, STREAM_UPDATE_INTERVAL);
+        };
 
         if (reader) {
           while (true) {
@@ -176,45 +275,57 @@ export function BoardFlowClient({ board }: BoardFlowClientProps) {
                       continue;
                     }
 
-                    // Update message content in real-time
-                    // Use flushSync to force immediate DOM update for streaming
-                    flushSync(() => {
-                      setWindows((prev) => {
-                        return prev.map((w) => {
-                          if (w.id !== activeWindowId) return w;
-
-                          const existingMessageIndex = w.messages.findIndex(
-                            (m) => m.id === assistantMessageId
-                          );
-
-                          if (existingMessageIndex >= 0) {
-                            // Update existing message
-                            const newMessages = [...w.messages];
-                            newMessages[existingMessageIndex] = {
-                              ...newMessages[existingMessageIndex],
-                              content: fullContent,
-                            };
-                            return { ...w, messages: newMessages };
-                          } else {
-                            // Add new message
-                            return {
-                              ...w,
-                              messages: [
-                                ...w.messages,
-                                {
-                                  id: assistantMessageId,
-                                  role: MessageRole.ASSISTANT,
-                                  content: fullContent,
-                                  createdAt: new Date(),
-                                },
-                              ],
-                            };
-                          }
-                        });
-                      });
-                    });
+                    // Store pending update and schedule render
+                    pendingUpdate = {
+                      content: fullContent,
+                      messageId: assistantMessageId,
+                    };
+                    scheduleUpdate();
                   }
                   if (data.done) {
+                    // Cancel any pending timeout and do final update immediately
+                    if (updateTimeoutId !== null) {
+                      clearTimeout(updateTimeoutId);
+                      updateTimeoutId = null;
+                    }
+                    // Ensure final content is rendered
+                    setWindows((prev) => {
+                      return prev.map((w) => {
+                        if (w.id !== activeWindowId) return w;
+
+                        const existingMessageIndex = w.messages.findIndex(
+                          (m) => m.id === assistantMessageId
+                        );
+
+                        if (existingMessageIndex >= 0) {
+                          const existingMessage = w.messages[existingMessageIndex];
+                          // Only update if content changed
+                          if (existingMessage.content === fullContent) {
+                            return w;
+                          }
+                          const newMessages = [...w.messages];
+                          newMessages[existingMessageIndex] = {
+                            ...newMessages[existingMessageIndex],
+                            content: fullContent,
+                          };
+                          return { ...w, messages: newMessages };
+                        } else {
+                          return {
+                            ...w,
+                            messages: [
+                              ...w.messages,
+                              {
+                                id: assistantMessageId,
+                                role: MessageRole.ASSISTANT,
+                                content: fullContent,
+                                createdAt: new Date(),
+                              },
+                            ],
+                          };
+                        }
+                      });
+                    });
+                    pendingUpdate = null;
                     setStreamingWindowId(null);
                     setThinkingWindowId(null);
                     // Small delay before final refresh to ensure UI has updated
@@ -385,60 +496,101 @@ export function BoardFlowClient({ board }: BoardFlowClientProps) {
       const sourceWindow = windows.find((w) => w.id === sourceWindowId);
       if (!sourceWindow) return;
 
-      const newPositionX = sourceWindow.positionX + 600; // Increased distance from parent
+      const newPositionX = sourceWindow.positionX + 600;
       const newPositionY = sourceWindow.positionY;
 
-      try {
-        // Create follow-up window and edge atomically via API
-        const followUpResponse = await fetch(
-          `/api/boards/${board.id}/follow-up`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              sourceWindowId,
-              sourceMessageId: messageId,
-              selectedText,
-              title: "Follow-up",
-              positionX: newPositionX,
-              positionY: newPositionY,
-            }),
+      // Generate temp IDs
+      const tempWindowId = `temp-follow-up-${Date.now()}`;
+      const tempEdgeId = `temp-edge-${Date.now()}`;
+
+      // Optimistically add window and edge
+      const optimisticWindow: ChatWindow = {
+        id: tempWindowId,
+        title: "Follow-up",
+        positionX: newPositionX,
+        positionY: newPositionY,
+        modelId: sourceWindow.modelId,
+        messages: [],
+      };
+
+      const optimisticEdge: EdgeData = {
+        id: tempEdgeId,
+        sourceWindowId,
+        targetWindowId: tempWindowId,
+        selectedText,
+        sourceMessageId: messageId,
+      };
+
+      // Update state immediately
+      setWindows((prev) => [...prev, optimisticWindow]);
+      setEdges((prev) => [...prev, optimisticEdge]);
+      setFocusTarget({ id: tempWindowId, timestamp: Date.now() });
+
+      // Create promise for the API call and store it
+      const followUpPromise = (async () => {
+        try {
+          const followUpResponse = await fetch(
+            `/api/boards/${board.id}/follow-up`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                sourceWindowId,
+                sourceMessageId: messageId,
+                selectedText,
+                title: "Follow-up",
+                positionX: newPositionX,
+                positionY: newPositionY,
+              }),
+            }
+          );
+
+          if (!followUpResponse.ok) {
+            throw new Error("Failed to create follow-up");
           }
-        );
 
-        if (!followUpResponse.ok) {
-          throw new Error("Failed to create follow-up");
+          const result = await followUpResponse.json();
+          const { window: newWindow, edge: newEdge } = result;
+
+          // Replace temp IDs with real IDs
+          setWindows((prev) =>
+            prev.map((w) =>
+              w.id === tempWindowId
+                ? { ...w, id: newWindow.id, modelId: newWindow.modelId }
+                : w
+            )
+          );
+
+          setEdges((prev) =>
+            prev.map((e) =>
+              e.id === tempEdgeId
+                ? {
+                    ...e,
+                    id: newEdge.id,
+                    targetWindowId: newEdge.targetWindowId,
+                  }
+                : e
+            )
+          );
+
+          // Update focus target with real ID
+          setFocusTarget({ id: newWindow.id, timestamp: Date.now() });
+
+          return newWindow.id;
+        } catch (error) {
+          console.error("Error creating follow-up:", error);
+          // Remove optimistic window and edge on failure
+          setWindows((prev) => prev.filter((w) => w.id !== tempWindowId));
+          setEdges((prev) => prev.filter((e) => e.id !== tempEdgeId));
+          throw error;
+        } finally {
+          // Clean up the pending follow-up entry
+          pendingFollowUps.current.delete(tempWindowId);
         }
+      })();
 
-        const result = await followUpResponse.json();
-        const { window: newWindow, edge: newEdge } = result;
-
-        // Update state directly with the new window and edge (no need to fetch entire board)
-        setWindows((prev) => [
-          ...prev,
-          {
-            id: newWindow.id,
-            title: newWindow.title,
-            positionX: newWindow.positionX,
-            positionY: newWindow.positionY,
-            modelId: newWindow.modelId,
-            messages: [], // New window starts with no messages
-          },
-        ]);
-
-        setEdges((prev) => [
-          ...prev,
-          {
-            id: newEdge.id,
-            sourceWindowId: newEdge.sourceWindowId,
-            targetWindowId: newEdge.targetWindowId,
-            selectedText: newEdge.selectedText,
-            sourceMessageId: newEdge.sourceMessageId,
-          },
-        ]);
-      } catch (error) {
-        console.error("Error creating follow-up:", error);
-      }
+      // Store the promise for race condition handling
+      pendingFollowUps.current.set(tempWindowId, followUpPromise);
     },
     [board.id, windows]
   );

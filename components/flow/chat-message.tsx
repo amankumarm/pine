@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { MessageRole } from "@prisma/client";
+import { Streamdown } from "streamdown";
 
 interface ChatMessageProps {
   id: string;
@@ -137,7 +138,13 @@ export function ChatMessage({
           cursor: isStreaming ? "default" : undefined,
         }}
       >
-        <div className="whitespace-pre-wrap break-words">{content}</div>
+        {role === MessageRole.ASSISTANT ? (
+          <div className="prose prose-sm dark:prose-invert max-w-none break-words">
+            <Streamdown isAnimating={isStreaming}>{content}</Streamdown>
+          </div>
+        ) : (
+          <div className="whitespace-pre-wrap break-words">{content}</div>
+        )}
         {isStreaming && (
           <span className="inline-block w-2 h-4 ml-1 bg-current animate-pulse" />
         )}

@@ -1,0 +1,25 @@
+{
+  "users": {
+    "lastId": "84675c8c-4290-490a-80f1-0e5b7fcb2c70",
+    "count": 2
+  },
+  "status": "completed",
+  "startedAt": "2026-01-23T20:23:07.292Z",
+  "boards": {
+    "lastId": "8d2e0ec5-6c53-4213-84ef-b2dc6dc654be",
+    "count": 2
+  },
+  "chat_windows": {
+    "lastId": "ff5d5272-803d-4fe8-ad1b-3e414652367f",
+    "count": 79
+  },
+  "messages": {
+    "lastId": "fdb0ee23-c1e1-4938-9ef3-86bd19e89fde",
+    "count": 170
+  },
+  "edges": {
+    "lastId": "ffec9499-01b3-401d-ba09-5c31027f0335",
+    "count": 62
+  },
+  "completedAt": "2026-01-23T20:24:22.664Z"
+}
